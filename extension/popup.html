@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IDM Clone</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    width: 320px;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 13px;
+    background: #f8f9fa;
+    color: #212529;
+  }
+
+  .header {
+    background: #0d6efd;
+    color: white;
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .header h1 { font-size: 15px; font-weight: 700; }
+  .header .status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #adb5bd; margin-left: auto;
+    flex-shrink: 0;
+  }
+  .header .status-dot.online { background: #51cf66; }
+  .header .status-label { font-size: 11px; opacity: 0.9; }
+
+  .section { padding: 10px 14px; border-bottom: 1px solid #dee2e6; }
+  .section-title { font-weight: 600; font-size: 11px; color: #6c757d; text-transform: uppercase; margin-bottom: 8px; }
+
+  .stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+  .stat-item { background: white; border: 1px solid #dee2e6; border-radius: 6px; padding: 6px 8px; text-align: center; }
+  .stat-value { font-size: 18px; font-weight: 700; color: #0d6efd; }
+  .stat-label { font-size: 10px; color: #6c757d; margin-top: 1px; }
+
+  .btn {
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    width: 100%; padding: 8px 12px; border-radius: 6px; border: none;
+    font-size: 13px; font-weight: 600; cursor: pointer;
+    transition: background 0.15s;
+  }
+  .btn-primary { background: #0d6efd; color: white; }
+  .btn-primary:hover { background: #0b5ed7; }
+  .btn-secondary { background: #e9ecef; color: #495057; }
+  .btn-secondary:hover { background: #dee2e6; }
+  .btn-success { background: #198754; color: white; }
+  .btn-success:hover { background: #146c43; }
+
+  .input-row { display: flex; gap: 6px; }
+  .input-row input {
+    flex: 1; padding: 6px 8px; border: 1px solid #ced4da;
+    border-radius: 6px; font-size: 13px; outline: none;
+  }
+  .input-row input:focus { border-color: #0d6efd; }
+
+  .task-list { max-height: 140px; overflow-y: auto; }
+  .task-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 5px 0; border-bottom: 1px solid #f1f3f5;
+  }
+  .task-item:last-child { border-bottom: none; }
+  .task-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+  .task-progress { font-size: 11px; color: #6c757d; white-space: nowrap; }
+  .task-bar { width: 60px; height: 4px; background: #e9ecef; border-radius: 2px; overflow: hidden; flex-shrink: 0; }
+  .task-bar-fill { height: 100%; background: #0d6efd; border-radius: 2px; transition: width 0.3s; }
+
+  .filter-section { padding: 10px 14px; }
+  .filter-label { font-size: 11px; color: #6c757d; margin-bottom: 6px; font-weight: 600; text-transform: uppercase; }
+  .filter-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .filter-row { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+  .filter-row input[type=checkbox] { accent-color: #0d6efd; }
+  .filter-row input[type=number] {
+    width: 70px; padding: 3px 6px; border: 1px solid #ced4da;
+    border-radius: 4px; font-size: 12px;
+  }
+
+  .footer {
+    padding: 8px 14px; background: #f1f3f5; font-size: 11px;
+    color: #6c757d; display: flex; justify-content: space-between; align-items: center;
+  }
+  .offline-banner {
+    background: #fff3cd; color: #664d03; padding: 8px 14px;
+    font-size: 12px; display: flex; align-items: center; gap: 6px;
+    display: none;
+  }
+  .offline-banner.visible { display: flex; }
+
+  .btn-group { display: flex; gap: 6px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <span style="font-size:18px">⬇</span>
+  <h1>IDM Clone 下载助手</h1>
+  <span class="status-dot" id="statusDot"></span>
+  <span class="status-label" id="statusLabel">检查中...</span>
+</div>
+
+<div class="offline-banner" id="offlineBanner">
+  ⚠️ 下载器未运行，请先启动 IDM Clone
+</div>
+
+<!-- Stats -->
+<div class="section">
+  <div class="section-title">当前状态</div>
+  <div class="stats">
+    <div class="stat-item">
+      <div class="stat-value" id="statActive">—</div>
+      <div class="stat-label">下载中</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-value" id="statQueued">—</div>
+      <div class="stat-label">排队</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-value" id="statDone">—</div>
+      <div class="stat-label">已完成</div>
+    </div>
+  </div>
+</div>
+
+<!-- Manual URL -->
+<div class="section">
+  <div class="section-title">手动添加下载</div>
+  <div class="input-row" style="margin-bottom:6px">
+    <input type="url" id="urlInput" placeholder="粘贴下载链接...">
+  </div>
+  <div class="btn-group">
+    <button class="btn btn-primary" id="btnDownload" style="flex:2">⬇ 发送到下载器</button>
+    <button class="btn btn-success" id="btnSniff" style="flex:1">🔍 嗅探</button>
+  </div>
+</div>
+
+<!-- Recent tasks -->
+<div class="section">
+  <div class="section-title">最近任务</div>
+  <div class="task-list" id="taskList">
+    <div style="color:#adb5bd; font-size:12px; text-align:center; padding:12px 0">暂无任务</div>
+  </div>
+</div>
+
+<!-- Quick filter settings -->
+<div class="filter-section">
+  <div class="filter-label">快速过滤设置</div>
+  <div class="filter-row" style="margin-bottom:6px">
+    <input type="checkbox" id="chkEnabled" checked>
+    <label for="chkEnabled">启用下载拦截</label>
+  </div>
+  <div class="filter-row" style="margin-bottom:4px">
+    <span>最小文件大小:</span>
+    <input type="number" id="minSize" min="0" step="0.5" value="1">
+    <span>MB</span>
+  </div>
+</div>
+
+<div class="footer">
+  <span id="footerSpeed">就绪</span>
+  <button class="btn btn-secondary" style="padding:3px 8px;font-size:11px" id="btnSync">🔄 同步配置</button>
+</div>
+
+<script src="popup.js"></script>
+</body>
+</html>
