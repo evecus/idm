@@ -1,0 +1,143 @@
+name: Build IDM Clone
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    name: Build Windows EXE
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: downloader/requirements.txt
+
+      - name: Install dependencies
+        working-directory: downloader
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Build with PyInstaller
+        working-directory: downloader
+        run: |
+          pyinstaller IDMClone.spec --noconfirm --clean
+
+      - name: Create installer directory
+        run: |
+          mkdir -p release
+          xcopy /E /I downloader\dist\IDMClone release\IDMClone-Windows
+        shell: cmd
+
+      - name: Zip Windows build
+        run: |
+          Compress-Archive -Path release\IDMClone-Windows -DestinationPath release\IDMClone-Windows.zip
+        shell: pwsh
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: IDMClone-Windows
+          path: release/IDMClone-Windows.zip
+          retention-days: 30
+
+  pack-extension:
+    name: Pack Chrome Extension
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install crx-packer
+        run: npm install -g crx3
+
+      - name: Generate extension key (if not present)
+        run: |
+          if [ ! -f extension.pem ]; then
+            openssl genrsa -out extension.pem 2048
+          fi
+
+      - name: Pack extension as ZIP (for Chrome Web Store / manual install)
+        run: |
+          cd extension
+          zip -r ../release/IDMClone-Extension.zip . -x "*.DS_Store" -x "__MACOSX/*"
+          cd ..
+
+      - name: Create release directory
+        run: mkdir -p release
+
+      - name: Upload extension artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: IDMClone-Extension
+          path: release/IDMClone-Extension.zip
+          retention-days: 30
+
+  release:
+    name: Create GitHub Release
+    needs: [build-windows, pack-extension]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+
+    steps:
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: IDMClone-Windows
+          path: release
+
+      - name: Download Extension artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: IDMClone-Extension
+          path: release
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: IDM Clone ${{ github.ref_name }}
+          body: |
+            ## IDM Clone ${{ github.ref_name }}
+
+            ### 安装说明
+
+            **下载器（Windows）**
+            1. 下载 `IDMClone-Windows.zip`，解压到任意目录
+            2. 运行 `IDMClone.exe`
+
+            **浏览器插件（Chrome / Edge）**
+            1. 下载 `IDMClone-Extension.zip`，解压到本地文件夹
+            2. 打开浏览器扩展页面（`chrome://extensions`）
+            3. 开启「开发者模式」
+            4. 点击「加载已解压的扩展程序」，选择解压后的文件夹
+            5. 确保下载器正在运行（插件图标变绿表示已连接）
+
+            ### 功能
+            - ✅ 多线程分片下载（1-32线程可配置）
+            - ✅ 断点续传
+            - ✅ 浏览器插件拦截下载
+            - ✅ 视频嗅探（YouTube、B站、抖音等1000+网站）
+            - ✅ 文件类型/大小/站点过滤
+            - ✅ 系统代理支持
+            - ✅ 下载队列管理
+          files: |
+            release/IDMClone-Windows.zip
+            release/IDMClone-Extension.zip
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
