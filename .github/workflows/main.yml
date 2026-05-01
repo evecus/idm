@@ -36,16 +36,12 @@ jobs:
         run: |
           pyinstaller IDMClone.spec --noconfirm --clean
 
-      - name: Create installer directory
-        run: |
-          mkdir -p release
-          xcopy /E /I downloader\dist\IDMClone release\IDMClone-Windows
-        shell: cmd
-
-      - name: Zip Windows build
-        run: |
-          Compress-Archive -Path release\IDMClone-Windows -DestinationPath release\IDMClone-Windows.zip
+      - name: Package build output
         shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release | Out-Null
+          Copy-Item -Recurse downloader\dist\IDMClone release\IDMClone-Windows
+          Compress-Archive -Path release\IDMClone-Windows\* -DestinationPath release\IDMClone-Windows.zip
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
@@ -62,23 +58,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install crx-packer
-        run: npm install -g crx3
-
-      - name: Generate extension key (if not present)
-        run: |
-          if [ ! -f extension.pem ]; then
-            openssl genrsa -out extension.pem 2048
-          fi
-
-      - name: Pack extension as ZIP (for Chrome Web Store / manual install)
-        run: |
-          cd extension
-          zip -r ../release/IDMClone-Extension.zip . -x "*.DS_Store" -x "__MACOSX/*"
-          cd ..
-
       - name: Create release directory
         run: mkdir -p release
+
+      - name: Pack extension as ZIP (Chrome/Edge sideload or Web Store)
+        run: |
+          zip -r release/IDMClone-Extension.zip extension/ \
+            -x "*.DS_Store" -x "__MACOSX/*"
 
       - name: Upload extension artifact
         uses: actions/upload-artifact@v4
@@ -121,17 +107,17 @@ jobs:
 
             **浏览器插件（Chrome / Edge）**
             1. 下载 `IDMClone-Extension.zip`，解压到本地文件夹
-            2. 打开浏览器扩展页面（`chrome://extensions`）
+            2. 打开 `chrome://extensions`
             3. 开启「开发者模式」
             4. 点击「加载已解压的扩展程序」，选择解压后的文件夹
-            5. 确保下载器正在运行（插件图标变绿表示已连接）
+            5. 下载器运行时插件图标显示 🟢 表示已连接
 
             ### 功能
-            - ✅ 多线程分片下载（1-32线程可配置）
+            - ✅ 多线程分片下载（1-32 线程可配置）
             - ✅ 断点续传
             - ✅ 浏览器插件拦截下载
-            - ✅ 视频嗅探（YouTube、B站、抖音等1000+网站）
-            - ✅ 文件类型/大小/站点过滤
+            - ✅ 视频嗅探（YouTube、B站、抖音等 1000+ 网站）
+            - ✅ 文件类型 / 大小 / 站点过滤
             - ✅ 系统代理支持
             - ✅ 下载队列管理
           files: |
